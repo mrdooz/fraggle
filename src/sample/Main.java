@@ -1,5 +1,6 @@
 package sample;
 
+import com.sun.webkit.dom.KeyboardEventImpl;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.geometry.Orientation;
@@ -8,6 +9,8 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
@@ -17,8 +20,9 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.*;
 import javafx.stage.Stage;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.awt.event.KeyEvent;
+import java.beans.EventHandler;
+import java.util.*;
 
 public class Main extends Application {
 
@@ -27,7 +31,8 @@ public class Main extends Application {
     int gridSize = 20;
     Vector2i curTile = new Vector2i(-1, -1);
     boolean drawGrid = true;
-    List<Node> nodes = new ArrayList<>();
+    Map<Integer, Node> nodes = new HashMap<>();
+    Set<Integer> selectedNodes = new HashSet<>();
     int nextNodeId = 1;
 
     class Node
@@ -35,23 +40,34 @@ public class Main extends Application {
         public Node(Vector2i pos) {
             isSink = false;
             isDefaultRenderTarget = false;
+            isSelected = false;
             this.pos = pos;
-            this.size = new Vector2i(3 * gridSize, 2 * gridSize);
+            this.size = new Vector2i(3, 2);
             this.id = nextNodeId++;
+            //this.rect = new Rectangle(pos.x * gridSize, pos.y * gridSize, 3 * gridSize, 2 * gridSize);
+            //root.getChildren().add(this.rect);
         }
 
         public void Draw(GraphicsContext gc) {
             gc.setStroke(new Color(0.1, 0.1, 0.1, 1));
-            gc.setFill(new Color(0.2, 0.6, 0.2, 1));
-            gc.fillRect(pos.x, pos.y, size.x, size.y);
-            gc.strokeRect(pos.x, pos.y, size.x, size.y);
+
+            if (isSelected) {
+                gc.setFill(new Color(0.6, 0.6, 0.2, 1));
+            } else {
+                gc.setFill(new Color(0.2, 0.6, 0.2, 1));
+            }
+            gc.fillRect(pos.x * gridSize, pos.y * gridSize, size.x * gridSize, size.y * gridSize);
+            gc.strokeRect(pos.x * gridSize, pos.y * gridSize, size.x * gridSize, size.y * gridSize);
         }
 
+        // Note, both pos and size are in grid units, not pixels
         Vector2i pos, size;
 
         int id;
         boolean isSink;
         boolean isDefaultRenderTarget;
+        boolean isSelected;
+        Rectangle rect;
     }
 
     class NodeGrid
@@ -65,10 +81,22 @@ public class Main extends Application {
             }
         }
 
+        public Node nodeAtPos(Vector2i pos) {
+            int x = pos.x;
+            int y = pos.y;
+            int id = data[y][x];
+            return id == -1 ? null : nodes.get(id);
+        }
+
+        public boolean isEmpty(Node node)
+        {
+            return isEmpty(node.pos.x, node.pos.y, node.size.x, node.size.y);
+        }
+
         public boolean isEmpty(int x, int y, int w, int h) {
             // TODO: bounds check
-            for (int i = 0; i < y; ++i) {
-                for (int j = 0; j < x; ++j) {
+            for (int i = y; i < y + h; ++i) {
+                for (int j = x; j < x + w; ++j) {
                     if (data[i][j] != -1) {
                         return false;
                     }
@@ -78,18 +106,26 @@ public class Main extends Application {
             return true;
         }
 
+        public void addNode(Node node) {
+            addNode(node.pos.x, node.pos.y, node.size.x, node.size.y, node.id);
+        }
+
         public void addNode(int x, int y, int w, int h, int id) {
-            for (int i = 0; i < y; ++i) {
-                for (int j = 0; j < x; ++j) {
+            for (int i = y; i < y + h; ++i) {
+                for (int j = x; j < x + w; ++j) {
                     assert(data[i][j] == -1);
                     data[i][j] = id;
                 }
             }
         }
 
+        public void eraseNode(Node node) {
+            eraseNode(node.pos.x, node.pos.y, node.size.x, node.size.y);
+        }
+
         public void eraseNode(int x, int y, int w, int h) {
-            for (int i = 0; i < y; ++i) {
-                for (int j = 0; j < x; ++j) {
+            for (int i = y; i < y + h; ++i) {
+                for (int j = x; j < x + w; ++j) {
                     data[i][j] = -1;
                 }
             }
@@ -116,16 +152,58 @@ public class Main extends Application {
         return new Vector2i((int)x / gridSize, (int)y / gridSize);
     }
 
+    void clearSelectedNodes() {
+        for (int id : selectedNodes) {
+            Node n = nodes.getOrDefault(id, null);
+            if (n != null) {
+                n.isSelected = false;
+            }
+        }
+        selectedNodes.clear();
+    }
+
+    void toggleSelectedNode(Node node) {
+
+        if (node.isSelected) {
+            selectedNodes.remove(node.id);
+        } else {
+            selectedNodes.add(node.id);
+        }
+        node.isSelected = !node.isSelected;
+    }
+
+
     void makeMain(ScrollPane pane)
     {
         int w = 1024;
         int h = 768;
         Canvas canvas = new Canvas(w, h);
-        nodeGrid = new NodeGrid(w/gridSize, h/gridSize);
+        nodeGrid = new NodeGrid(w / gridSize, h / gridSize);
         pane.setContent(canvas);
         final GraphicsContext gc = canvas.getGraphicsContext2D();
         double zoom = 1;
         gc.scale(zoom, zoom);
+
+        scene.setOnKeyReleased(keyEvent -> {
+            switch (keyEvent.getCode()) {
+
+                case ESCAPE:
+                    clearSelectedNodes();
+                    break;
+
+                case DELETE:
+                    for (int id : selectedNodes) {
+                        Node n = nodes.getOrDefault(id, null);
+                        if (n != null) {
+                            nodeGrid.eraseNode(n);
+                            nodes.remove(id);
+                            n = null;
+                        }
+                    }
+                    selectedNodes.clear();
+                    break;
+            }
+        });
 
         canvas.addEventHandler(MouseEvent.MOUSE_MOVED,
                 mouseEvent -> {
@@ -134,32 +212,48 @@ public class Main extends Application {
 
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED,
                 mouseEvent -> {
+                    int a = 10;
+                });
+
+        canvas.addEventHandler(MouseEvent.DRAG_DETECTED,
+                mouseEvent -> {
+                    int a = 10;
                 });
 
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED,
                 mouseEvent -> {
-//                    mousePos = snappedPos(mouseEvent.getX(), mouseEvent.getY());
-//                    editor.applyBrush(mousePos);
+                    int a = 10;
                 });
 
         canvas.addEventHandler(MouseEvent.MOUSE_RELEASED,
                 mouseEvent -> {
                     Vector2i v = gridPos(mouseEvent.getX(), mouseEvent.getY());
 
-                    if (nodeGrid.isEmpty(v.x, v.y, ....))
-                    nodes.add(new Node(snappedPos(mouseEvent.getX(), mouseEvent.getY())));
-                    MouseButton btn = mouseEvent.getButton();
-                    switch (btn) {
+                    Node hit = nodeGrid.nodeAtPos(v);
+                    if (hit != null) {
+                        // If ctrl is pressed, then add/remove the node from the selected set; otherwise just clear
+                        // the selected set, and insert the node
+                        if (!mouseEvent.isControlDown()) {
+                            clearSelectedNodes();
+                        }
+                        toggleSelectedNode(hit);
+                    } else {
+
+                        clearSelectedNodes();
+
+                        // No node was hit, so create a new one
+                        Node node = new Node(v);
+                        if (nodeGrid.isEmpty(node)) {
+                            nodeGrid.addNode(node);
+                            nodes.put(node.id, node);
+                        }
+                    }
+//                    MouseButton btn = mouseEvent.getButton();
+//                    switch (btn) {
 //                        case PRIMARY: editor.applyBrush(mousePos); break;
 //                        case SECONDARY: editor.deleteTile(mousePos); break;
-                    }
+//                    }
                 });
-
-        Path path = new Path();
-        path.setStrokeWidth(3);
-
-        path.getElements().addAll(new MoveTo(0, 0), new LineTo(0, 0), new LineTo(100, 100));
-        root.getChildren().add(path);
 
         new AnimationTimer() {
             @Override
@@ -185,11 +279,8 @@ public class Main extends Application {
                         gc.strokeRect(curTile.x*gridSize, curTile.y*gridSize, gridSize, gridSize);
                     }
 
-                    gc.setStroke(new Color(0.1, 0.1, 0.1, 1));
-                    for (Node n : nodes) {
-                        gc.setFill(new Color(0.2, 0.6, 0.2, 1));
-                        gc.fillRect(n.pos.x, n.pos.y, n.size.x, n.size.y);
-                        gc.strokeRect(n.pos.x, n.pos.y, n.size.x, n.size.y);
+                    for (Node n : nodes.values()) {
+                        n.Draw(gc);
                     }
                 }
 
@@ -203,24 +294,6 @@ public class Main extends Application {
 
         root = new Group();
         scene = new Scene(root, 1024, 768);
-
-//        Canvas canvas = new Canvas(1024, 768);
-//        root.getChildren().add(canvas);
-//        final GraphicsContext gc = canvas.getGraphicsContext2D();
-////        double zoom = 2;
-////        gc.scale(zoom, zoom);
-//
-//
-//        canvas.addEventHandler(MouseEvent.MOUSE_MOVED,
-//                mouseEvent -> {
-//                    System.out.println("moved");
-////                    mousePos = snappedPos(mouseEvent.getX(), mouseEvent.getY());
-//                });
-//
-//        canvas.addEventHandler(MouseEvent.MOUSE_PRESSED,
-//                mouseEvent -> {
-//                    System.out.println("pressed");
-//                });
 
         BorderPane border = new BorderPane();
         HBox hbox = new HBox();
@@ -237,15 +310,6 @@ public class Main extends Application {
         split.prefHeightProperty().bind(scene.heightProperty());
 
         split.setOrientation(Orientation.HORIZONTAL);
-//        mapPane.getTabs().add(createMapTab(new Map("map1", new Vector2i(100, 100), new Vector2i(32, 32))));
-//        mapPane.getTabs().add(createMapTab(new Map("map1", new Vector2i(100, 100), new Vector2i(16, 16))));
-
-//        mapPane.getSelectionModel().selectedItemProperty().addListener(
-//                (observableValue, oldTab, newTab) -> {
-//                    find the map associated with the new tab
-//                    selectedMap = tabToMap.get(newTab);
-//                }
-//        );
 
         SplitPane propertySplitPane = new SplitPane();
         propertySplitPane.setOrientation(Orientation.HORIZONTAL);
@@ -273,7 +337,7 @@ public class Main extends Application {
 
         root.getChildren().add(border);
 
-        primaryStage.setTitle("JTiled");
+        primaryStage.setTitle("Fraggle");
         primaryStage.setScene(scene);
         primaryStage.show();
 
