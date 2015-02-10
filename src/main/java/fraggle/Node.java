@@ -1,15 +1,27 @@
-package sample;
+package fraggle;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 
 public class Node
 {
+    Vector2i pos, size;
+    Vector2i moveStart;
+
+    int id;
+    boolean isSink;
+    boolean isDefaultRenderTarget;
+    boolean isSelected;
+    boolean invalidDropPos;
+    boolean isMoving;
+    String type;
     static int nextNodeId = 1;
-    public Node(Vector2i pos) {
-        isSink = false;
-        isDefaultRenderTarget = false;
-        isSelected = false;
+
+    public Node(String type, Vector2i pos) {
+        this.isSink = false;
+        this.isDefaultRenderTarget = false;
+        this.isSelected = false;
+        this.type = type;
         this.pos = pos;
         this.size = new Vector2i(3, 2);
         this.id = nextNodeId++;
@@ -38,14 +50,4 @@ public class Node
         gc.fillRect(pos.x * Settings.GRID_SIZE, pos.y * Settings.GRID_SIZE, size.x * Settings.GRID_SIZE, size.y * Settings.GRID_SIZE);
         gc.strokeRect(pos.x * Settings.GRID_SIZE, pos.y * Settings.GRID_SIZE, size.x * Settings.GRID_SIZE, size.y * Settings.GRID_SIZE);
     }
-
-    Vector2i pos, size;
-    Vector2i moveStart;
-
-    int id;
-    boolean isSink;
-    boolean isDefaultRenderTarget;
-    boolean isSelected;
-    boolean invalidDropPos;
-    boolean isMoving;
 }

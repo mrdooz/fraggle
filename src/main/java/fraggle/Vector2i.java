@@ -1,4 +1,4 @@
-package sample;
+package fraggle;
 
 public class Vector2i {
     int x;

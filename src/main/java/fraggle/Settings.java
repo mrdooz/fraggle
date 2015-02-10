@@ -1,4 +1,4 @@
-package sample;
+package fraggle;
 
 public class Settings
 {

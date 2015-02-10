@@ -1,4 +1,4 @@
-package sample;
+package fraggle;
 
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
@@ -29,76 +29,14 @@ public class Main extends Application {
     Map<Integer, Node> nodes = new HashMap<>();
     Set<Integer> selectedNodes = new HashSet<>();
 
-
     NodeGrid nodeGrid;
     Vector2i dragStart;
     boolean validDrop;
-
-    public enum Day {
-        SUNDAY, MONDAY, TUESDAY, WEDNESDAY,
-        THURSDAY, FRIDAY, SATURDAY
-    }
+    PropertySheet propertySheet = new PropertySheet();
 
     public class PropertySheetExample extends VBox {
 
-        private Map<String, Object> customDataMap = new LinkedHashMap<>();
-        {
-            customDataMap.put("Group 1#My Text", "Same text"); // Creates a TextField in property sheet
-            customDataMap.put("Group 1#My Date", LocalDate.of(2000, Month.JANUARY, 1)); // Creates a DatePicker
-            customDataMap.put("Group 2#My Enum Choice", Day.FRIDAY); // Creates a ChoiceBox
-            customDataMap.put("Group 2#My Boolean", false); // Creates a CheckBox
-            customDataMap.put("Group 2#My Number", 1); // Creates a NumericField
-        }
-
-        class CustomPropertyItem implements PropertySheet.Item {
-            private String key;
-            private String category, name;
-
-            public CustomPropertyItem(String key) {
-                this.key = key;
-                String[] skey = key.split("#");
-                category = skey[0];
-                name = skey[1];
-            }
-
-            @Override
-            public Class<?> getType() {
-                return customDataMap.get(key).getClass();
-            }
-
-            @Override
-            public String getCategory() {
-                return null;
-                //return category;
-            }
-
-            @Override
-            public String getName() {
-                return name;
-            }
-
-            @Override
-            public String getDescription() {
-                return null;
-            }
-
-            @Override
-            public Object getValue() {
-                return customDataMap.get(key);
-            }
-
-            @Override
-            public void setValue(Object value) {
-                customDataMap.put(key, value);
-            }
-        }
-
         public PropertySheetExample() {
-            ObservableList<PropertySheet.Item> list = FXCollections.observableArrayList();
-            for (String key : customDataMap.keySet())
-                list.add(new CustomPropertyItem(key));
-
-            PropertySheet propertySheet = new PropertySheet(list);
             propertySheet.setModeSwitcherVisible(false);
             propertySheet.setSearchBoxVisible(false);
             VBox.setVgrow(propertySheet, Priority.ALWAYS);
@@ -127,6 +65,7 @@ public class Main extends Application {
             deselectNode(node);
         }
         selectedNodes.clear();
+        propertySheet.getItems().clear();
     }
 
     void selectNode(Node node) {
@@ -282,12 +221,18 @@ public class Main extends Application {
                                 clearSelectedNodes();
                             }
                             toggleSelectedNode(hit);
+
+                            // If a single item is hit, change the property settings
+                            if (selectedNodes.size() == 1) {
+                                propertySheet.getItems().setAll(NodeData.NODE_PROPERTIES.get(hit.type));
+                            }
+
                         } else {
 
                             clearSelectedNodes();
 
                             // No node was hit, so create a new one
-                            Node node = new Node(v);
+                            Node node = new Node("sink", v);
                             if (nodeGrid.isEmpty(node)) {
                                 nodeGrid.addNode(node);
                                 nodes.put(node.id, node);
