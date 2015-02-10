@@ -9,13 +9,11 @@ public class Vector2i {
         this.y = y;
     }
 
-    Vector2i add(int x, int y) {
-        return new Vector2i(this.x + x, this.y + y);
-    }
+    void add(Vector2i v) { this.x += v.x; this.y += v.y; }
+    void sub(Vector2i v) { this.x -= v.x; this.y -= v.y; }
 
-    Vector2i add(Vector2i v) {
-        return new Vector2i(this.x + v.x, this.y + v.y);
-    }
+    static Vector2i sub(Vector2i a, Vector2i b) { return new Vector2i(a.x - b.x, a.y - b.y); }
+    static Vector2i add(Vector2i a, Vector2i b) { return new Vector2i(a.x + b.x, a.y + b.y); }
 
     @Override
     public String toString() {
