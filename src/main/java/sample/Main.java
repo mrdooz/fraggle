@@ -5,7 +5,6 @@ import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Orientation;
-import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
@@ -25,141 +24,11 @@ public class Main extends Application {
 
     Group root;
     Scene scene;
-    int gridSize = 20;
     Vector2i curTile = new Vector2i(-1, -1);
     boolean drawGrid = true;
     Map<Integer, Node> nodes = new HashMap<>();
     Set<Integer> selectedNodes = new HashSet<>();
-    int nextNodeId = 1;
 
-    class PosSize
-    {
-        // Note, both pos and size are in grid units, not pixels
-        Vector2i pos;
-        Vector2i size;
-
-        public PosSize(Vector2i pos, Vector2i size) {
-            this.pos = pos;
-            this.size = size;
-        }
-    }
-
-    class Node
-    {
-        public Node(Vector2i pos) {
-            isSink = false;
-            isDefaultRenderTarget = false;
-            isSelected = false;
-            this.pos = pos;
-            this.size = new Vector2i(3, 2);
-            this.id = nextNodeId++;
-        }
-
-        Color getNodeColor() {
-            if (isMoving) {
-                if (invalidDropPos) {
-                    return new Color(0.6, 0.2, 0.2, 0.5);
-                } else {
-                    return new Color(0.2, 0.6, 0.2, 0.5);
-                }
-            } else {
-                if (isSelected) {
-                    return new Color(0.6, 0.6, 0.2, 1);
-                } else {
-                    return new Color(0.2, 0.6, 0.2, 1);
-                }
-            }
-        }
-
-        public void Draw(GraphicsContext gc) {
-            gc.setStroke(new Color(0.1, 0.1, 0.1, 1));
-            gc.setFill(getNodeColor());
-
-            gc.fillRect(pos.x * gridSize, pos.y * gridSize, size.x * gridSize, size.y * gridSize);
-            gc.strokeRect(pos.x * gridSize, pos.y * gridSize, size.x * gridSize, size.y * gridSize);
-        }
-
-        Vector2i pos, size;
-        Vector2i moveStart;
-
-        int id;
-        boolean isSink;
-        boolean isDefaultRenderTarget;
-        boolean isSelected;
-        boolean invalidDropPos;
-        boolean isMoving;
-    }
-
-    boolean nodeOverlap(PosSize lhs, PosSize rhs) {
-        PosSize mn = lhs.pos.x < rhs.pos.x ? lhs : rhs;
-        PosSize mx = lhs.pos.x < rhs.pos.x ? rhs : lhs;
-        if (mn.pos.x <= mx.pos.x && mn.pos.x + mn.size.x > mx.pos.x) {
-
-            mn = lhs.pos.y < rhs.pos.y ? lhs : rhs;
-            mx = lhs.pos.y < rhs.pos.y ? rhs : lhs;
-            return mn.pos.y <= mx.pos.y && mn.pos.y + mn.size.y > mx.pos.y;
-        }
-        return false;
-    }
-
-    public class NodeGrid
-    {
-        public NodeGrid(int x, int y) {
-            data = new int[y][x];
-            for (int i = 0; i < y; ++i) {
-                for (int j = 0; j < x; ++j) {
-                    data[i][j] = -1;
-                }
-            }
-        }
-
-        public Node nodeAtPos(Vector2i pos) {
-            int x = pos.x;
-            int y = pos.y;
-            int id = data[y][x];
-            return id == -1 ? null : nodes.get(id);
-        }
-
-        public boolean isEmpty(Node node)
-        {
-            return isEmpty(node.pos.x, node.pos.y, node.size.x, node.size.y);
-        }
-
-        public boolean isEmpty(int x, int y, int w, int h) {
-            // TODO: bounds check
-            for (int i = y; i < y + h; ++i) {
-                for (int j = x; j < x + w; ++j) {
-                    if (data[i][j] != -1) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        public void addNode(Node node) {
-            addNode(node.pos.x, node.pos.y, node.size.x, node.size.y, node.id);
-        }
-
-        public void addNode(int x, int y, int w, int h, int id) {
-            for (int i = y; i < y + h; ++i) {
-                for (int j = x; j < x + w; ++j) {
-                    assert(data[i][j] == -1);
-                    data[i][j] = id;
-                }
-            }
-        }
-
-        public void eraseNode(Node node) {
-            addNode(node.pos.x, node.pos.y, node.size.x, node.size.y, -1);
-        }
-
-        public void eraseNode(int x, int y, int w, int h) {
-            addNode(x, y, w, h, -1);
-        }
-
-        int[][] data;
-    }
 
     NodeGrid nodeGrid;
     Vector2i dragStart;
@@ -174,7 +43,6 @@ public class Main extends Application {
 
         private Map<String, Object> customDataMap = new LinkedHashMap<>();
         {
-
             customDataMap.put("Group 1#My Text", "Same text"); // Creates a TextField in property sheet
             customDataMap.put("Group 1#My Date", LocalDate.of(2000, Month.JANUARY, 1)); // Creates a DatePicker
             customDataMap.put("Group 2#My Enum Choice", Day.FRIDAY); // Creates a ChoiceBox
@@ -247,11 +115,11 @@ public class Main extends Application {
     }
 
     Vector2i snappedPos(double x, double y) {
-        return new Vector2i(gridSize * ((int)x / gridSize), gridSize * ((int)y / gridSize));
+        return new Vector2i(Settings.GRID_SIZE * ((int)x / Settings.GRID_SIZE), Settings.GRID_SIZE * ((int)y / Settings.GRID_SIZE));
     }
 
     Vector2i gridPos(double x, double y) {
-        return new Vector2i((int)x / gridSize, (int)y / gridSize);
+        return new Vector2i((int)x / Settings.GRID_SIZE, (int)y / Settings.GRID_SIZE);
     }
 
     void clearSelectedNodes() {
@@ -294,7 +162,7 @@ public class Main extends Application {
         int w = 1024;
         int h = 768;
         Canvas canvas = new Canvas(w, h);
-        nodeGrid = new NodeGrid(w / gridSize, h / gridSize);
+        nodeGrid = new NodeGrid(this, w / Settings.GRID_SIZE, h / Settings.GRID_SIZE);
         pane.setContent(canvas);
         final GraphicsContext gc = canvas.getGraphicsContext2D();
         double zoom = 1;
@@ -359,7 +227,7 @@ public class Main extends Application {
                                 a.invalidDropPos = false;
                                 a.isMoving = true;
 
-                                if (nodeOverlap(new PosSize(a.pos, a.size), new PosSize(b.pos, b.size))) {
+                                if (Utils.nodeOverlap(new PosSize(a.pos, a.size), new PosSize(b.pos, b.size))) {
                                     a.invalidDropPos = true;
                                     validDrop = false;
                                 }
@@ -441,9 +309,9 @@ public class Main extends Application {
                     double s = 0.8;
                     gc.setStroke(new Color(s, s, s, 1));
 
-                    for (int y = 0; y < h / gridSize + 1; ++y) {
-                        for (int x = 0; x < w / gridSize + 1; ++x) {
-                            gc.strokeRect(x*gridSize, y*gridSize, gridSize, gridSize);
+                    for (int y = 0; y < h / Settings.GRID_SIZE + 1; ++y) {
+                        for (int x = 0; x < w / Settings.GRID_SIZE + 1; ++x) {
+                            gc.strokeRect(x* Settings.GRID_SIZE, y* Settings.GRID_SIZE, Settings.GRID_SIZE, Settings.GRID_SIZE);
                         }
                     }
 
@@ -462,7 +330,7 @@ public class Main extends Application {
 
                     if (curTile.x != -1) {
                         gc.setStroke(new Color(0.1, 0.1, 0.9, 1));
-                        gc.strokeRect(curTile.x*gridSize, curTile.y*gridSize, gridSize, gridSize);
+                        gc.strokeRect(curTile.x* Settings.GRID_SIZE, curTile.y* Settings.GRID_SIZE, Settings.GRID_SIZE, Settings.GRID_SIZE);
                     }
 
                 }
