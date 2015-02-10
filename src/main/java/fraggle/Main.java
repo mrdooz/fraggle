@@ -1,5 +1,6 @@
 package fraggle;
 
+import com.rits.cloning.Cloner;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
@@ -21,6 +22,8 @@ import java.time.Month;
 import java.util.*;
 
 public class Main extends Application {
+
+    static Cloner CLONER = new Cloner();
 
     Group root;
     Scene scene;
@@ -94,6 +97,20 @@ public class Main extends Application {
             }
         }
         return res;
+    }
+
+    void displayProperties(Node node) {
+        if (node.properties == null) {
+            // set default values
+            Map<String, Object> properties = NodeData.NODE_PROPERTIES.getOrDefault(node.type, null);
+            if (properties == null) {
+                System.out.printf("Unable to find properties for: %s\n", node.type);
+                return;
+            }
+            node.properties = CLONER.deepClone(properties);
+        }
+
+        propertySheet.getItems().setAll(NodeData.listFromItems(node.properties));
     }
 
     void makeMain(ScrollPane pane)
@@ -224,7 +241,7 @@ public class Main extends Application {
 
                             // If a single item is hit, change the property settings
                             if (selectedNodes.size() == 1) {
-                                propertySheet.getItems().setAll(NodeData.NODE_PROPERTIES.get(hit.type));
+                                displayProperties(hit);
                             }
 
                         } else {
@@ -337,16 +354,7 @@ public class Main extends Application {
         primaryStage.setTitle("Fraggle");
         primaryStage.setScene(scene);
         primaryStage.show();
-
-        if (true) {
-//            Tileset t = new Tileset("test", "/Users/dooz/tmp/tmw_desert_spacing.png",
-//                    new Vector2i(32, 32), new Vector2i(1, 1), new Vector2i(1, 1));
-//            Tileset t = new Tileset("test", "/Users/dooz/tmp/dungeon_sheet_0.png", new Vector2i(16, 16));
-//            tilesets.add(t);
-//            selectedTileset = t;
-        }
     }
-
 
     public static void main(String[] args) {
         launch(args);

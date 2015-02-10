@@ -14,54 +14,46 @@ public class NodeData {
 
     // TODO: I probably want some kind of grouping here..
     public static String[] NODE_TYPES = { "particle", "intro_text", "intro_lines", "sink" };
-    public static Map<String, ObservableList<PropertySheet.Item>> NODE_PROPERTIES = new HashMap<>();
+    public static Map<String, ObservableList<PropertySheet.Item>> NODE_PROPERTIES_LIST = new HashMap<>();
+    public static Map<String, Map<String, Object>> NODE_PROPERTIES = new HashMap<>();
 
     static {
-        // add the node properties
+        // Add the default node properties
         {
-            Map<String, Object> sinkDataMap = new LinkedHashMap<>();
-            sinkDataMap.put("name", "sink1");
-            sinkDataMap.put("floating point", false);
-            sinkDataMap.put("default swap chain", true);
-            NODE_PROPERTIES.put("sink", listFromItems(sinkDataMap));
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("name", "sink1");
+            data.put("floating point", false);
+            data.put("default swap chain", true);
+            NODE_PROPERTIES.put("sink", data);
+            NODE_PROPERTIES_LIST.put("sink", listFromItems(data));
         }
 
         {
-            Map<String, Object> sinkDataMap = new LinkedHashMap<>();
-            sinkDataMap.put("name", "particle1");
-            NODE_PROPERTIES.put("particle", listFromItems(sinkDataMap));
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("name", "particle1");
+            NODE_PROPERTIES.put("particle", data);
+            NODE_PROPERTIES_LIST.put("particle", listFromItems(data));
         }
 
         {
-            Map<String, Object> sinkDataMap = new LinkedHashMap<>();
-            sinkDataMap.put("name", "intro_text");
-            NODE_PROPERTIES.put("intro_text", listFromItems(sinkDataMap));
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("name", "intro_text");
+            NODE_PROPERTIES.put("intro_text", data);
+            NODE_PROPERTIES_LIST.put("intro_text", listFromItems(data));
         }
 
         {
-            Map<String, Object> sinkDataMap = new LinkedHashMap<>();
-            sinkDataMap.put("name", "intro_lines");
-            NODE_PROPERTIES.put("intro_lines", listFromItems(sinkDataMap));
+            Map<String, Object> data = new LinkedHashMap<>();
+            data.put("name", "intro_lines");
+            NODE_PROPERTIES.put("intro_lines", data);
+            NODE_PROPERTIES_LIST.put("intro_lines", listFromItems(data));
         }
     }
 
-
-    public enum Day {
-        SUNDAY, MONDAY, TUESDAY, WEDNESDAY,
-        THURSDAY, FRIDAY, SATURDAY
-    }
-
-    static ObservableList<PropertySheet.Item> listFromItems(Map<String, Object> items) {
+    public static ObservableList<PropertySheet.Item> listFromItems(Map<String, Object> items) {
         ObservableList<PropertySheet.Item> list = FXCollections.observableArrayList();
         for (String key : items.keySet())
             list.add(new CustomPropertyItem(key, items, items.get(key).getClass()));
         return list;
-    }
-
-
-    private Map<String, Object> sinkDataMap = new LinkedHashMap<>();
-    {
-        sinkDataMap.put("name", "rt1");
-        sinkDataMap.put("float point", false);
     }
 }

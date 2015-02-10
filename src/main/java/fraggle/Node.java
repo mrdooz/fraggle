@@ -3,6 +3,8 @@ package fraggle;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 
+import java.util.Map;
+
 public class Node
 {
     Vector2i pos, size;
@@ -16,6 +18,7 @@ public class Node
     boolean isMoving;
     String type;
     static int nextNodeId = 1;
+    Map<String, Object> properties;
 
     public Node(String type, Vector2i pos) {
         this.isSink = false;
