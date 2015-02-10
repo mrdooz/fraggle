@@ -3,6 +3,7 @@ package sample;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
@@ -27,6 +28,18 @@ public class Main extends Application {
     Map<Integer, Node> nodes = new HashMap<>();
     Set<Integer> selectedNodes = new HashSet<>();
     int nextNodeId = 1;
+
+    class PosSize
+    {
+        // Note, both pos and size are in grid units, not pixels
+        Vector2i pos;
+        Vector2i size;
+
+        public PosSize(Vector2i pos, Vector2i size) {
+            this.pos = pos;
+            this.size = size;
+        }
+    }
 
     class Node
     {
@@ -63,7 +76,6 @@ public class Main extends Application {
             gc.strokeRect(pos.x * gridSize, pos.y * gridSize, size.x * gridSize, size.y * gridSize);
         }
 
-        // Note, both pos and size are in grid units, not pixels
         Vector2i pos, size;
         Vector2i moveStart;
 
@@ -73,6 +85,18 @@ public class Main extends Application {
         boolean isSelected;
         boolean invalidDropPos;
         boolean isMoving;
+    }
+
+    boolean nodeOverlap(PosSize lhs, PosSize rhs) {
+        PosSize mn = lhs.pos.x < rhs.pos.x ? lhs : rhs;
+        PosSize mx = lhs.pos.x < rhs.pos.x ? rhs : lhs;
+        if (mn.pos.x <= mx.pos.x && mn.pos.x + mn.size.x > mx.pos.x) {
+
+            mn = lhs.pos.y < rhs.pos.y ? lhs : rhs;
+            mx = lhs.pos.y < rhs.pos.y ? rhs : lhs;
+            return mn.pos.y <= mx.pos.y && mn.pos.y + mn.size.y > mx.pos.y;
+        }
+        return false;
     }
 
     public class NodeGrid
@@ -107,7 +131,6 @@ public class Main extends Application {
                     }
                 }
             }
-
             return true;
         }
 
@@ -137,6 +160,7 @@ public class Main extends Application {
 
     NodeGrid nodeGrid;
     Vector2i dragStart;
+    boolean validDrop;
 
     Tab createMapTab(String name) {
         Tab tab = new Tab(name);
@@ -155,23 +179,27 @@ public class Main extends Application {
     }
 
     void clearSelectedNodes() {
-        for (int id : selectedNodes) {
-            Node n = nodes.getOrDefault(id, null);
-            if (n != null) {
-                n.isSelected = false;
-            }
+        for (Node node : getSelectedNodes()) {
+            deselectNode(node);
         }
         selectedNodes.clear();
     }
 
-    void toggleSelectedNode(Node node) {
+    void selectNode(Node node) {
+        selectedNodes.add(node.id);
+        node.isSelected = true;
+    }
 
-        if (node.isSelected) {
-            selectedNodes.remove(node.id);
-        } else {
-            selectedNodes.add(node.id);
-        }
-        node.isSelected = !node.isSelected;
+    void deselectNode(Node node) {
+        selectedNodes.remove(node.id);
+        node.isSelected = false;
+    }
+
+    void toggleSelectedNode(Node node) {
+        if (node.isSelected)
+            deselectNode(node);
+        else
+            selectNode(node);
     }
 
     List<Node> getSelectedNodes() {
@@ -228,14 +256,14 @@ public class Main extends Application {
                 mouseEvent -> {
                     Vector2i dragCur = gridPos(mouseEvent.getX(), mouseEvent.getY());
 
+                    validDrop = true;
+
                     // if we're above a node, and no nodes are selected, then add the current node to the
                     // selected list
                     Node hitTest = nodeGrid.nodeAtPos(dragCur);
                     if (hitTest != null && selectedNodes.isEmpty()) {
-                        selectedNodes.add(hitTest.id);
+                        selectNode(hitTest);
                     }
-
-                    System.out.printf("# selected: %d\n", selectedNodes.size());
 
                     boolean firstMove = false;
                     if (dragStart == null) {
@@ -246,29 +274,30 @@ public class Main extends Application {
                     Vector2i diff = Vector2i.sub(dragCur, dragStart);
 
                     // check that the move is valid before performing it
-                    boolean validMove = true;
                     if (!firstMove) {
-                        for (Node node : getSelectedNodes()) {
-                            Node testNode = nodeGrid.nodeAtPos(Vector2i.add(node.moveStart, diff));
-                            node.invalidDropPos = false;
-                            node.isMoving = true;
-                            if (!(testNode == null || testNode == node)) {
-                                validMove = false;
-                                node.invalidDropPos = true;
+                        for (Node a : getSelectedNodes()) {
+                            for (Node b : nodes.values()) {
+                                if (a == b || b.isSelected)
+                                    continue;
+
+                                a.invalidDropPos = false;
+                                a.isMoving = true;
+
+                                if (nodeOverlap(new PosSize(a.pos, a.size), new PosSize(b.pos, b.size))) {
+                                    a.invalidDropPos = true;
+                                    validDrop = false;
+                                }
+
                             }
                         }
 
-                        if (validMove) {
-                            for (Node node : getSelectedNodes()) {
-                                nodeGrid.eraseNode(node);
-                                node.pos = Vector2i.add(node.moveStart, diff);
-                                nodeGrid.addNode(node);
-                            }
+                        for (Node node : getSelectedNodes()) {
+                            node.pos = Vector2i.add(node.moveStart, diff);
                         }
 
                     } else {
                         for (Node node : getSelectedNodes()) {
-                            node.moveStart = dragStart;
+                            node.moveStart = node.pos;
                         }
                     }
                 });
@@ -286,9 +315,20 @@ public class Main extends Application {
                     if (dragStart != null) {
                         dragStart = null;
                         for (Node node : getSelectedNodes()) {
+                            // if this wasn't a valid drop, then move the node back to its starting position
+                            if (!validDrop) {
+                                node.pos = node.moveStart;
+                            } else {
+                                nodeGrid.eraseNode(node.moveStart.x, node.moveStart.y, node.size.x, node.size.y);
+                                nodeGrid.addNode(node);
+                            }
+
                             node.invalidDropPos = false;
                             node.isMoving = false;
+                            deselectNode(node);
                         }
+
+                        selectedNodes.clear();
                     } else {
                         Node hit = nodeGrid.nodeAtPos(v);
                         if (hit != null) {
@@ -331,14 +371,24 @@ public class Main extends Application {
                         }
                     }
 
+                    // draw the selected nodes in a later pass
+                    List<Node> deferred = new ArrayList<Node>();
+                    for (Node n : nodes.values()) {
+                        if (n.isMoving || n.isSelected)
+                            deferred.add(n);
+                        else
+                            n.Draw(gc);
+                    }
+
+                    for (Node n : deferred) {
+                        n.Draw(gc);
+                    }
+
                     if (curTile.x != -1) {
                         gc.setStroke(new Color(0.1, 0.1, 0.9, 1));
                         gc.strokeRect(curTile.x*gridSize, curTile.y*gridSize, gridSize, gridSize);
                     }
 
-                    for (Node n : nodes.values()) {
-                        n.Draw(gc);
-                    }
                 }
 
             }
