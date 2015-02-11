@@ -1,10 +1,8 @@
 package fraggle;
 
-import com.rits.cloning.Cloner;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Orientation;
 import javafx.scene.Group;
 import javafx.scene.Scene;
@@ -12,18 +10,17 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.*;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.controlsfx.control.PropertySheet;
 
-import java.time.LocalDate;
-import java.time.Month;
 import java.util.*;
 
 public class Main extends Application {
-
-    static Cloner CLONER = new Cloner();
 
     Group root;
     Scene scene;
@@ -31,15 +28,17 @@ public class Main extends Application {
     boolean drawGrid = true;
     Map<Integer, Node> nodes = new HashMap<>();
     Set<Integer> selectedNodes = new HashSet<>();
+    String curNodeType;
 
     NodeGrid nodeGrid;
     Vector2i dragStart;
     boolean validDrop;
     PropertySheet propertySheet = new PropertySheet();
+    ListView<String> nodesListView;
 
-    public class PropertySheetExample extends VBox {
+    public class PropertySheetVBox extends VBox {
 
-        public PropertySheetExample() {
+        public PropertySheetVBox() {
             propertySheet.setModeSwitcherVisible(false);
             propertySheet.setSearchBoxVisible(false);
             VBox.setVgrow(propertySheet, Priority.ALWAYS);
@@ -53,10 +52,6 @@ public class Main extends Application {
         makeMain(pane);
         tab.setContent(pane);
         return tab;
-    }
-
-    Vector2i snappedPos(double x, double y) {
-        return new Vector2i(Settings.GRID_SIZE * ((int)x / Settings.GRID_SIZE), Settings.GRID_SIZE * ((int)y / Settings.GRID_SIZE));
     }
 
     Vector2i gridPos(double x, double y) {
@@ -100,16 +95,6 @@ public class Main extends Application {
     }
 
     void displayProperties(Node node) {
-        if (node.properties == null) {
-            // set default values
-            Map<String, Object> properties = NodeData.NODE_PROPERTIES.getOrDefault(node.type, null);
-            if (properties == null) {
-                System.out.printf("Unable to find properties for: %s\n", node.type);
-                return;
-            }
-            node.properties = CLONER.deepClone(properties);
-        }
-
         propertySheet.getItems().setAll(NodeData.listFromItems(node.properties));
     }
 
@@ -129,6 +114,8 @@ public class Main extends Application {
 
                 case ESCAPE:
                     clearSelectedNodes();
+                    curNodeType = null;
+                    nodesListView.getSelectionModel().clearSelection();
                     break;
 
                 case DELETE:
@@ -149,7 +136,6 @@ public class Main extends Application {
 
         canvas.addEventHandler(MouseEvent.MOUSE_PRESSED,
                 mouseEvent -> {
-                    int a = 10;
                 });
 
         canvas.addEventHandler(MouseEvent.MOUSE_DRAGGED,
@@ -187,7 +173,6 @@ public class Main extends Application {
                                     a.invalidDropPos = true;
                                     validDrop = false;
                                 }
-
                             }
                         }
 
@@ -248,11 +233,17 @@ public class Main extends Application {
 
                             clearSelectedNodes();
 
-                            // No node was hit, so create a new one
-                            Node node = new Node("sink", v);
-                            if (nodeGrid.isEmpty(node)) {
-                                nodeGrid.addNode(node);
-                                nodes.put(node.id, node);
+                            if (curNodeType != null) {
+                                // No node was hit, so create a new one
+                                try {
+                                    Node node = new Node(curNodeType, v);
+                                    if (nodeGrid.isEmpty(node)) {
+                                        nodeGrid.addNode(node);
+                                        nodes.put(node.id, node);
+                                    }
+                                } catch (Exception e) {
+                                    System.out.print(e.getMessage());
+                                }
                             }
                         }
                     }
@@ -278,7 +269,7 @@ public class Main extends Application {
                     }
 
                     // draw the selected nodes in a later pass
-                    List<Node> deferred = new ArrayList<Node>();
+                    List<Node> deferred = new ArrayList<>();
                     for (Node n : nodes.values()) {
                         if (n.isMoving || n.isSelected)
                             deferred.add(n);
@@ -309,29 +300,20 @@ public class Main extends Application {
         scene = new Scene(root, 1024, 768);
 
         BorderPane border = new BorderPane();
-        HBox hbox = new HBox();
-        Button btnSave = new Button("save");
-        Button btnNewMap = new Button("new map");
-        btnNewMap.setOnAction(event -> {
-            System.out.println("new map");
-        });
-        hbox.getChildren().addAll(btnSave, btnNewMap);
-        border.setTop(hbox);
 
         SplitPane split = new SplitPane();
         split.prefWidthProperty().bind(scene.widthProperty());
         split.prefHeightProperty().bind(scene.heightProperty());
-
         split.setOrientation(Orientation.HORIZONTAL);
 
         SplitPane propertySplitPane = new SplitPane();
-        propertySplitPane.setOrientation(Orientation.HORIZONTAL);
+        propertySplitPane.setOrientation(Orientation.VERTICAL);
 
-        TabPane layerPane = new TabPane();
-        Tab minimapTab = new Tab("Mini-map");
-        minimapTab.setContent(new PropertySheetExample());
-        Tab objectsTab = new Tab("Objects");
-        layerPane.getTabs().addAll(minimapTab, objectsTab);
+        nodesListView = new ListView<>(FXCollections.observableArrayList(NodeData.NODE_TYPES));
+        nodesListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+            curNodeType = newValue;
+        });
+        propertySplitPane.getItems().addAll(new PropertySheetVBox(), nodesListView);
 
         TabPane tilesetPane = new TabPane();
         tilesetPane.getTabs().addAll(createMapTab("tjong"));
@@ -340,7 +322,7 @@ public class Main extends Application {
 
         SplitPane rightSplit = new SplitPane();
         rightSplit.setOrientation(Orientation.HORIZONTAL);
-        rightSplit.getItems().addAll(tilesetPane, layerPane);
+        rightSplit.getItems().addAll(tilesetPane, propertySplitPane);
 
         StackPane right = new StackPane();
         right.getChildren().add(rightSplit);

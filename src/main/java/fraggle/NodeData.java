@@ -12,6 +12,8 @@ import java.util.Map;
 
 public class NodeData {
 
+    public static final String SINK_TYPE = "sink";
+
     // TODO: I probably want some kind of grouping here..
     public static String[] NODE_TYPES = { "particle", "intro_text", "intro_lines", "sink" };
     public static Map<String, ObservableList<PropertySheet.Item>> NODE_PROPERTIES_LIST = new HashMap<>();
