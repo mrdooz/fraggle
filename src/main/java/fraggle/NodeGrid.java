@@ -6,6 +6,7 @@ public class NodeGrid
 
     public NodeGrid(Main main, int x, int y) {
         this.main = main;
+        this.size = new Vector2i(x, y);
         data = new int[y][x];
         for (int i = 0; i < y; ++i) {
             for (int j = 0; j < x; ++j) {
@@ -14,11 +15,13 @@ public class NodeGrid
         }
     }
 
-    public Node nodeAtPos(Vector2i pos) {
-        int x = pos.x;
-        int y = pos.y;
+    public Node nodeAtPos(int x, int y) {
         int id = data[y][x];
         return id == -1 ? null : main.nodes.get(id);
+    }
+
+    public Node nodeAtPos(Vector2i pos) {
+        return nodeAtPos(pos.x, pos.y);
     }
 
     public boolean isEmpty(Node node)
@@ -60,4 +63,5 @@ public class NodeGrid
     }
 
     int[][] data;
+    Vector2i size;
 }

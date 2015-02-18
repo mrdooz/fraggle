@@ -2,6 +2,7 @@ package fraggle;
 
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Orientation;
 import javafx.scene.Group;
@@ -10,10 +11,7 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.controlsfx.control.PropertySheet;
@@ -36,17 +34,12 @@ public class Main extends Application {
     PropertySheet propertySheet = new PropertySheet();
     ListView<String> nodesListView;
 
-    public class PropertySheetVBox extends VBox {
-
-        public PropertySheetVBox() {
-            propertySheet.setModeSwitcherVisible(false);
-            propertySheet.setSearchBoxVisible(false);
-            VBox.setVgrow(propertySheet, Priority.ALWAYS);
-            getChildren().add(propertySheet);
-        }
+    class RenderStack
+    {
+        String name;
     }
 
-    Tab createMapTab(String name) {
+    Tab createRenderTab(String name) {
         Tab tab = new Tab(name);
         ScrollPane pane = new ScrollPane();
         makeMain(pane);
@@ -95,7 +88,7 @@ public class Main extends Application {
     }
 
     void displayProperties(Node node) {
-        propertySheet.getItems().setAll(NodeData.listFromItems(node.properties));
+        propertySheet.getItems().setAll(NodeData.listFromPropertyMap(node.renderSegment.properties));
     }
 
     void makeMain(ScrollPane pane)
@@ -293,45 +286,148 @@ public class Main extends Application {
 
     }
 
+    void processNodeStack(Stack<Integer> nodeStack) {
+
+        System.out.printf("** STACK **\n");
+
+        while (!nodeStack.isEmpty()) {
+            int nodeId = nodeStack.pop();
+            Node node = nodes.get(nodeId);
+            System.out.printf("Node: %d\n", node.id);
+        }
+    }
+
+    void verifyBlocks() {
+
+        int sizeX = nodeGrid.size.x;
+        int sizeY = nodeGrid.size.y;
+
+        Set<Integer> processedNodes = new HashSet<>();
+
+        // stacks are valid if they consist of non-sinks, and end with a sink
+        for (int y = 0 ; y < sizeY; ++y) {
+            for (int x = 0; x < sizeX; ++x) {
+
+                Node node = nodeGrid.nodeAtPos(x, y);
+
+                if (node == null) {
+                    continue;
+                }
+
+                if (processedNodes.contains(node.id)) {
+                    continue;
+                }
+                processedNodes.add(node.id);
+
+                if (node.isSink) {
+                    // top node is a sink; this is invalid, so just skip it
+                    System.out.printf("Found dangling sink: %s\n", node.getProperty("name"));
+                    continue;
+                }
+
+                // found a top node; start processing downwards
+                int curId = node.id;
+                Stack<Integer> nodeStack = new Stack<>();
+                nodeStack.push(curId);
+                processedNodes.add(node.id);
+
+                for (int curY = y; curY < sizeY; ++curY) {
+
+                    Node curNode = nodeGrid.nodeAtPos(x, curY);
+                    if (curNode == null) {
+                        // reached end of connected nodes
+                        break;
+                    } else if (curNode.id == curId) {
+                        // current grid is part of the current node
+                        continue;
+                    }
+                    // add new node to the stack
+                    nodeStack.push(curNode.id);
+                    processedNodes.add(curNode.id);
+                    curId = curNode.id;
+                }
+
+                if (!nodeStack.isEmpty()) {
+                    // process the node stack
+                    processNodeStack(nodeStack);
+                }
+            }
+        }
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception{
 
         root = new Group();
         scene = new Scene(root, 1024, 768);
 
-        BorderPane border = new BorderPane();
+        // Create the border pane that will contain everything
+        BorderPane borderPane = new BorderPane();
 
-        SplitPane split = new SplitPane();
-        split.prefWidthProperty().bind(scene.widthProperty());
-        split.prefHeightProperty().bind(scene.heightProperty());
-        split.setOrientation(Orientation.HORIZONTAL);
+        // Create the main split pain
+        SplitPane mainSplit = new SplitPane();
+        mainSplit.setOrientation(Orientation.HORIZONTAL);
+        mainSplit.prefWidthProperty().bind(scene.widthProperty());
+        mainSplit.prefHeightProperty().bind(scene.heightProperty());
+        borderPane.setCenter(mainSplit);
 
-        SplitPane propertySplitPane = new SplitPane();
-        propertySplitPane.setOrientation(Orientation.VERTICAL);
+        {
+            // Create the menu and the buttons
+            VBox vbox = new VBox();
 
-        nodesListView = new ListView<>(FXCollections.observableArrayList(NodeData.NODE_TYPES));
-        nodesListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-            curNodeType = newValue;
-        });
-        propertySplitPane.getItems().addAll(new PropertySheetVBox(), nodesListView);
+            // Create the menu
+            MenuBar menuBar = new MenuBar();
+            vbox.getChildren().add(menuBar);
 
-        TabPane tilesetPane = new TabPane();
-        tilesetPane.getTabs().addAll(createMapTab("tjong"));
-        tilesetPane.setPrefWidth(200);
-        tilesetPane.setPrefHeight(400);
+            Menu fileMenu = new Menu("File");
+            MenuItem newMenuItem = new MenuItem("New");
+            MenuItem saveMenuItem = new MenuItem("Save");
+            MenuItem exitMenuItem = new MenuItem("Exit");
+            exitMenuItem.setOnAction(actionEvent -> Platform.exit() );
 
-        SplitPane rightSplit = new SplitPane();
-        rightSplit.setOrientation(Orientation.HORIZONTAL);
-        rightSplit.getItems().addAll(tilesetPane, propertySplitPane);
+            fileMenu.getItems().addAll(newMenuItem,
+                    saveMenuItem,
+                    new SeparatorMenuItem(),
+                    exitMenuItem
+            );
+            menuBar.getMenus().add(fileMenu);
 
-        StackPane right = new StackPane();
-        right.getChildren().add(rightSplit);
-        split.getItems().addAll(right);
-        border.setCenter(split);
+            // Create the buttons
+            HBox hbox = new HBox();
+            Button btnExport = new Button("export");
+            Button btnVerify = new Button("verify");
+            btnVerify.setOnAction(event -> {
+                verifyBlocks();
+            });
+            hbox.getChildren().addAll(btnExport, btnVerify);
+            vbox.getChildren().add(hbox);
+            borderPane.setTop(vbox);
+        }
 
-        right.setPrefWidth(200);
+        {
+            // Create main view
+            TabPane tilesetPane = new TabPane();
+            tilesetPane.getTabs().addAll(createRenderTab("main"));
+            tilesetPane.setPrefWidth(200);
+            tilesetPane.setPrefHeight(400);
+            mainSplit.getItems().add(tilesetPane);
+        }
 
-        root.getChildren().add(border);
+        {
+            // Create split pane for the property/node type panels
+            SplitPane propertySplitPane = new SplitPane();
+            propertySplitPane.setOrientation(Orientation.VERTICAL);
+
+            nodesListView = new ListView<>(FXCollections.observableArrayList(NodeData.NODE_TYPES));
+            nodesListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
+                curNodeType = newValue;
+            });
+            propertySplitPane.getItems().addAll(new PropertySheetVBox(propertySheet), nodesListView);
+            mainSplit.getItems().add(propertySplitPane);
+        }
+
+
+        root.getChildren().add(borderPane);
 
         primaryStage.setTitle("Fraggle");
         primaryStage.setScene(scene);
@@ -339,6 +435,7 @@ public class Main extends Application {
     }
 
     public static void main(String[] args) {
+        NodeData.Init();
         launch(args);
     }
 }

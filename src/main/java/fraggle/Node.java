@@ -16,28 +16,25 @@ public class Node
 
     int id;
     boolean isSink;
-    boolean isDefaultRenderTarget;
     boolean isSelected;
     boolean invalidDropPos;
     boolean isMoving;
-    String type;
+    RenderSegmentType type;
+    RenderSegment renderSegment;
     static int nextNodeId = 1;
-    Map<String, Object> properties;
 
-    public Node(String type, Vector2i pos) throws Exception {
+    public Node(RenderSegmentType type, Vector2i pos) throws Exception {
         this.isSink = Objects.equals(type, NodeData.SINK_TYPE);
-        this.isDefaultRenderTarget = false;
         this.isSelected = false;
         this.type = type;
         this.pos = pos;
         this.size = new Vector2i(3, 2);
         this.id = nextNodeId++;
+        this.renderSegment = RenderSegmentFactory.Create(type);
+    }
 
-        Map<String, Object> properties = NodeData.NODE_PROPERTIES.getOrDefault(type, null);
-        if (properties == null) {
-            throw new Exception("Unknown type: " + type);
-        }
-        this.properties = CLONER.deepClone(properties);
+    Object getProperty(String key) {
+        return renderSegment.getProperties().getOrDefault(key, null);
     }
 
     Color getNodeColor() {

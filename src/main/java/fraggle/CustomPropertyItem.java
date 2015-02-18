@@ -5,17 +5,15 @@ import org.controlsfx.control.PropertySheet;
 import java.util.Map;
 
 public class CustomPropertyItem implements PropertySheet.Item {
-    private String key;
+
     private String name;
-
     Class<?> clazz;
-    Map<String, Object> obj;
+    Map<String, NodeProperty> property;
 
-    public CustomPropertyItem(String key, Map<String, Object> obj, Class<?> clazz) {
-        this.key = key;
-        this.name = key;
+    public CustomPropertyItem(String name, Map<String, NodeProperty> property, Class<?> clazz) {
+        this.name = name;
         this.clazz = clazz;
-        this.obj = obj;
+        this.property = property;
     }
 
     @Override
@@ -40,11 +38,11 @@ public class CustomPropertyItem implements PropertySheet.Item {
 
     @Override
     public Object getValue() {
-        return obj.get(key);
+        return property.get(name).value;
     }
 
     @Override
     public void setValue(Object value) {
-        obj.put(key, value);
+        property.get(name).value = value;
     }
 }
