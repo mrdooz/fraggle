@@ -31,9 +31,9 @@ public class PropertySheetVBox extends VBox {
                 return Editors.createChoiceEditor(param, getSinks.apply());
             } else if (item.clazz == String[].class) {
                 return Editors.createChoiceEditor(param, null);
-            } else if (item.clazz == Boolean.class) {
+            } else if (item.clazz == Boolean.class || item.clazz == boolean.class) {
                 return Editors.createCheckEditor(param);
-            } else if (item.clazz == Integer.class) {
+            } else if (item.clazz == Integer.class  || item.clazz == int.class || item.clazz == float.class) {
                 return Editors.createNumericEditor(param);
             } else {
                 return Editors.createTextEditor(param);
