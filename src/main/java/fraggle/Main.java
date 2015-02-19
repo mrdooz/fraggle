@@ -25,19 +25,15 @@ public class Main extends Application {
     Vector2i curTile = new Vector2i(-1, -1);
     boolean drawGrid = true;
     Map<Integer, Node> nodes = new HashMap<>();
+    Set<Integer> sinkNodes = new HashSet<>();
     Set<Integer> selectedNodes = new HashSet<>();
-    String curNodeType;
+    RenderSegmentType curRenderSegmentType = RenderSegmentType.UNKNOWN;
 
     NodeGrid nodeGrid;
     Vector2i dragStart;
     boolean validDrop;
     PropertySheet propertySheet = new PropertySheet();
     ListView<String> nodesListView;
-
-    class RenderStack
-    {
-        String name;
-    }
 
     Tab createRenderTab(String name) {
         Tab tab = new Tab(name);
@@ -107,7 +103,7 @@ public class Main extends Application {
 
                 case ESCAPE:
                     clearSelectedNodes();
-                    curNodeType = null;
+                    curRenderSegmentType = RenderSegmentType.UNKNOWN;
                     nodesListView.getSelectionModel().clearSelection();
                     break;
 
@@ -115,6 +111,7 @@ public class Main extends Application {
                 case BACK_SPACE:
                     for (Node node : getSelectedNodes()) {
                         nodes.remove(node.id);
+                        sinkNodes.remove(node.id);
                         nodeGrid.eraseNode(node);
                     }
                     selectedNodes.clear();
@@ -226,13 +223,16 @@ public class Main extends Application {
 
                             clearSelectedNodes();
 
-                            if (curNodeType != null) {
+                            if (curRenderSegmentType != RenderSegmentType.UNKNOWN) {
                                 // No node was hit, so create a new one
                                 try {
-                                    Node node = new Node(curNodeType, v);
+                                    Node node = new Node(curRenderSegmentType, v);
                                     if (nodeGrid.isEmpty(node)) {
                                         nodeGrid.addNode(node);
                                         nodes.put(node.id, node);
+                                        if (curRenderSegmentType == RenderSegmentType.SINK) {
+                                            sinkNodes.add(node.id);
+                                        }
                                     }
                                 } catch (Exception e) {
                                     System.out.print(e.getMessage());
@@ -418,11 +418,23 @@ public class Main extends Application {
             SplitPane propertySplitPane = new SplitPane();
             propertySplitPane.setOrientation(Orientation.VERTICAL);
 
-            nodesListView = new ListView<>(FXCollections.observableArrayList(NodeData.NODE_TYPES));
+            List<String> nodeTypes = new ArrayList<>();
+            for (RenderSegmentType type : RenderSegmentType.values()) {
+                if (type != RenderSegmentType.UNKNOWN)
+                    nodeTypes.add(type.name());
+            }
+            nodesListView = new ListView<>(FXCollections.observableArrayList(nodeTypes));
             nodesListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-                curNodeType = newValue;
+                curRenderSegmentType = RenderSegmentType.valueOf(newValue);
             });
-            propertySplitPane.getItems().addAll(new PropertySheetVBox(propertySheet), nodesListView);
+            propertySplitPane.getItems().addAll(new PropertySheetVBox(propertySheet, () -> {
+                List<String> sinks = new ArrayList<String>();
+                for (int id : sinkNodes) {
+                    Node node = nodes.get(id);
+                    sinks.add((String)((NodeProperty)node.getProperty("name")).value);
+                }
+                return sinks;
+            }), nodesListView);
             mainSplit.getItems().add(propertySplitPane);
         }
 
@@ -435,7 +447,6 @@ public class Main extends Application {
     }
 
     public static void main(String[] args) {
-        NodeData.Init();
         launch(args);
     }
 }

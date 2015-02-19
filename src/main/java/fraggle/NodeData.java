@@ -18,16 +18,10 @@ class NodeProperty {
         this.type = type;
         this.value = value;
     }
-
-    public NodeProperty(String name, Class<?> type, Object value) {
-        this.name = name;
-        this.type = type;
-        this.value = value;
-    }
 }
 
 enum RenderSegmentType {
-  SINK, SOURCE, PARTICLE,
+  UNKNOWN, SINK, SOURCE, PARTICLE,
 };
 
 abstract class RenderSegment {
@@ -55,11 +49,16 @@ class RenderSegmentSink extends RenderSegment {
     }
 }
 
+class SourceInput {
+    String name;
+}
+
 class RenderSegmentSource extends RenderSegment {
 
     RenderSegmentSource() {
         super(RenderSegmentType.SOURCE);
         properties.put("name", new NodeProperty(String.class, "source1"));
+        properties.put("input", new NodeProperty(SourceInput.class, "input"));
     }
 }
 
@@ -84,58 +83,6 @@ class RenderSegmentParticle extends RenderSegment {
     }
 
 public class NodeData {
-
-    // todo: can i enum these guys?
-    public static final String SINK_TYPE = "sink";
-    public static final String SOURCE_TYPE = "source";
-
-    // TODO: I probably want some kind of grouping here..
-    public static String[] NODE_TYPES = { SOURCE_TYPE, "particle", "intro_text", "intro_lines", SINK_TYPE };
-    public static Map<String, Map<String, NodeProperty>> NODE_PROPERTIES = new HashMap<>();
-
-
-    /*
-        workflow
-        - write render segment config. one per segment
-        - output java class?
-     */
-
-    public static void Init() {
-        // Add the default node properties
-        {
-            Map<String, NodeProperty> props = new HashMap<>();
-            props.put("name", new NodeProperty(String.class, "sink1"));
-            props.put("floating point", new NodeProperty(boolean.class, false));
-            NODE_PROPERTIES.put(SINK_TYPE, props);
-        }
-
-        {
-            Map<String, NodeProperty> props = new HashMap<>();
-            props.put("name", new NodeProperty(String.class, "source1"));
-            // TODO: make drop down
-            props.put("input", new NodeProperty(String.class, "sink1"));
-            props.put("floating point", new NodeProperty(boolean.class, false));
-            NODE_PROPERTIES.put(SOURCE_TYPE, props);
-        }
-
-        {
-            Map<String, NodeProperty> props = new HashMap<>();
-            props.put("name", new NodeProperty(String.class, "sink1"));
-            NODE_PROPERTIES.put("particle", props);
-        }
-
-        {
-            Map<String, NodeProperty> props = new HashMap<>();
-            props.put("name", new NodeProperty(String.class, "sink1"));
-            NODE_PROPERTIES.put("intro_text", props);
-        }
-
-        {
-            Map<String, NodeProperty> props = new HashMap<>();
-            props.put("name", new NodeProperty(String.class, "sink1"));
-            NODE_PROPERTIES.put("intro_lines", props);
-        }
-    }
 
     public static ObservableList<PropertySheet.Item> listFromPropertyMap(Map<String, NodeProperty> properties) {
         ObservableList<PropertySheet.Item> list = FXCollections.observableArrayList();

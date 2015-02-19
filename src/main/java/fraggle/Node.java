@@ -24,7 +24,7 @@ public class Node
     static int nextNodeId = 1;
 
     public Node(RenderSegmentType type, Vector2i pos) throws Exception {
-        this.isSink = Objects.equals(type, NodeData.SINK_TYPE);
+        this.isSink = type == RenderSegmentType.SINK;
         this.isSelected = false;
         this.type = type;
         this.pos = pos;
