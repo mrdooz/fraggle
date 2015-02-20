@@ -12,6 +12,9 @@ import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -19,6 +22,8 @@ import javafx.stage.Stage;
 import org.controlsfx.control.PropertySheet;
 
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 // Everything that needs to be serialized goes in State
@@ -52,7 +57,6 @@ public class Main extends Application {
     int nextNodeId() {
         return state.nextNodeId++;
     }
-
     int nextRenderSegmentId() {
         return state.nextRenderSegmentId++;
     }
@@ -379,21 +383,28 @@ public class Main extends Application {
         }
     }
 
-    void PostSerializedFixup() {
-
-        // init the node grid
-        state.nodeGrid.data = new int[state.nodeGrid.size.y][state.nodeGrid.size.x];
-    }
-
     void LoadState() {
         try {
-            InputStream input = new FileInputStream("/Users/dooz/projects/fraggle/data1.xml");
+            Path path = Paths.get(System.getProperty("user.home"), "fraggle", "data1.xml");
+            InputStream input = new FileInputStream(path.toString());
             XStream xstream = new XStream(new DomDriver());
             xstream.processAnnotations(State.class);
             state = (State)xstream.fromXML(input);
 
             // Once the state has been restored, we need to do a bunch of fixup
-            PostSerializedFixup();
+
+            // Node/grid fixup
+            state.nodeGrid.data = new int[state.nodeGrid.size.y][state.nodeGrid.size.x];
+            for (Node node : state.nodes.values()) {
+                state.nodeGrid.addNode(node);
+                node.renderSegment = state.renderSegments.get(node.renderSegmentId);
+            }
+
+            // reset various structures
+            selectedNodes = new HashSet<>();
+            curRenderSegmentType = RenderSegmentType.UNKNOWN;
+            dragStart = null;
+
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -401,7 +412,11 @@ public class Main extends Application {
 
     void SaveState() {
         try {
-            OutputStream output = new FileOutputStream("/Users/dooz/projects/fraggle/data1.xml");
+            Path path = Paths.get(System.getProperty("user.home"), "fraggle", "data1.xml");
+
+            // create the output directory
+            path.getParent().toFile().mkdirs();
+            OutputStream output = new FileOutputStream(path.toString());
             XStream xstream = new XStream(new DomDriver());
             xstream.processAnnotations(State.class);
             xstream.toXML(state, output);
@@ -411,6 +426,36 @@ public class Main extends Application {
     }
 
     void ExportState() {
+    }
+
+    MenuBar CreateMenu() {
+        MenuBar menuBar = new MenuBar();
+
+        Menu fileMenu = new Menu("File");
+        MenuItem newMenuItem = new MenuItem("New");
+        MenuItem loadMenuItem = new MenuItem("Load");
+        loadMenuItem.setOnAction(actionEvent -> LoadState() );
+        loadMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.L, KeyCombination.CONTROL_DOWN));
+        MenuItem saveMenuItem = new MenuItem("Save");
+        saveMenuItem.setOnAction(actionEvent -> SaveState() );
+        saveMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN));
+        MenuItem exportMenuItem = new MenuItem("Export");
+        exportMenuItem.setOnAction(actionEvent -> ExportState() );
+        exportMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.E, KeyCombination.CONTROL_DOWN));
+        MenuItem exitMenuItem = new MenuItem("Exit");
+        exitMenuItem.setOnAction(actionEvent -> Platform.exit() );
+        exitMenuItem.setAccelerator(new KeyCodeCombination(KeyCode.Q, KeyCombination.CONTROL_DOWN));
+
+        fileMenu.getItems().addAll(newMenuItem,
+                loadMenuItem,
+                saveMenuItem,
+                exportMenuItem,
+                new SeparatorMenuItem(),
+                exitMenuItem
+        );
+        menuBar.getMenus().add(fileMenu);
+
+        return menuBar;
     }
 
     @Override
@@ -435,28 +480,8 @@ public class Main extends Application {
             VBox vbox = new VBox();
 
             // Create the menu
-            MenuBar menuBar = new MenuBar();
-            vbox.getChildren().add(menuBar);
-
-            Menu fileMenu = new Menu("File");
-            MenuItem newMenuItem = new MenuItem("New");
-            MenuItem loadMenuItem = new MenuItem("Load");
-            loadMenuItem.setOnAction(actionEvent -> LoadState() );
-            MenuItem saveMenuItem = new MenuItem("Save");
-            loadMenuItem.setOnAction(actionEvent -> SaveState() );
-            MenuItem exportMenuItem = new MenuItem("Export");
-            exportMenuItem.setOnAction(actionEvent -> ExportState() );
-            MenuItem exitMenuItem = new MenuItem("Exit");
-            exitMenuItem.setOnAction(actionEvent -> Platform.exit() );
-
-            fileMenu.getItems().addAll(newMenuItem,
-                    loadMenuItem,
-                    saveMenuItem,
-                    exportMenuItem,
-                    new SeparatorMenuItem(),
-                    exitMenuItem
-            );
-            menuBar.getMenus().add(fileMenu);
+            vbox.getChildren().add(CreateMenu());
+            CreateMenu();
 
             // Create the buttons
             HBox hbox = new HBox();
