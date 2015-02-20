@@ -1,36 +1,43 @@
 package fraggle;
 
-import com.rits.cloning.Cloner;
+import com.thoughtworks.xstream.annotations.XStreamAsAttribute;
+import com.thoughtworks.xstream.annotations.XStreamOmitField;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
 
-import java.util.Map;
-import java.util.Objects;
 
 public class Node
 {
-    static Cloner CLONER = new Cloner();
-
     Vector2i pos, size;
     Vector2i moveStart;
 
+    @XStreamAsAttribute
     int id;
+    @XStreamAsAttribute
+    int renderSegmentId;
+    @XStreamAsAttribute
     boolean isSink;
-    boolean isSelected;
-    boolean invalidDropPos;
-    boolean isMoving;
+    @XStreamAsAttribute
     RenderSegmentType type;
-    RenderSegment renderSegment;
-    static int nextNodeId = 1;
 
-    public Node(RenderSegmentType type, Vector2i pos) throws Exception {
+    @XStreamOmitField
+    boolean isSelected;
+    @XStreamOmitField
+    boolean invalidDropPos;
+    @XStreamOmitField
+    boolean isMoving;
+    @XStreamOmitField
+    RenderSegment renderSegment;
+
+    public Node(RenderSegmentType type, Vector2i pos, RenderSegment renderSegment) throws Exception {
         this.isSink = type == RenderSegmentType.SINK;
         this.isSelected = false;
         this.type = type;
         this.pos = pos;
         this.size = new Vector2i(3, 2);
-        this.id = nextNodeId++;
-        this.renderSegment = RenderSegmentFactory.Create(type);
+        this.id = Main.instance.nextNodeId();
+        this.renderSegment = renderSegment;
+        this.renderSegmentId = renderSegment.id;
     }
 
     Object getProperty(String key) {

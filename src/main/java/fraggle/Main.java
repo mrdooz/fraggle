@@ -1,5 +1,7 @@
 package fraggle;
 
+import com.thoughtworks.xstream.XStream;
+import com.thoughtworks.xstream.io.xml.DomDriver;
 import javafx.animation.AnimationTimer;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -16,24 +18,44 @@ import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import org.controlsfx.control.PropertySheet;
 
+import java.io.*;
 import java.util.*;
 
+// Everything that needs to be serialized goes in State
+class State {
+    Map<Integer, Node> nodes = new HashMap<>();
+    Map<Integer, RenderSegment> renderSegments = new HashMap<>();
+    Set<Integer> sinkNodes = new HashSet<>();
+    NodeGrid nodeGrid;
+    int nextNodeId = 1;
+    int nextRenderSegmentId = 1;
+}
+
 public class Main extends Application {
+
+    State state = new State();
+
+    static Main instance;
 
     Group root;
     Scene scene;
     Vector2i curTile = new Vector2i(-1, -1);
     boolean drawGrid = true;
-    Map<Integer, Node> nodes = new HashMap<>();
-    Set<Integer> sinkNodes = new HashSet<>();
     Set<Integer> selectedNodes = new HashSet<>();
     RenderSegmentType curRenderSegmentType = RenderSegmentType.UNKNOWN;
 
-    NodeGrid nodeGrid;
     Vector2i dragStart;
     boolean validDrop;
     PropertySheet propertySheet = new PropertySheet();
     ListView<String> nodesListView;
+
+    int nextNodeId() {
+        return state.nextNodeId++;
+    }
+
+    int nextRenderSegmentId() {
+        return state.nextRenderSegmentId++;
+    }
 
     Tab createRenderTab(String name) {
         Tab tab = new Tab(name);
@@ -75,7 +97,7 @@ public class Main extends Application {
     List<Node> getSelectedNodes() {
         List<Node> res = new ArrayList<>();
         for (int nodeIdx : selectedNodes) {
-            Node node = nodes.getOrDefault(nodeIdx, null);
+            Node node = state.nodes.getOrDefault(nodeIdx, null);
             if (node != null) {
                 res.add(node);
             }
@@ -92,7 +114,7 @@ public class Main extends Application {
         int w = 1024;
         int h = 768;
         Canvas canvas = new Canvas(w, h);
-        nodeGrid = new NodeGrid(this, w / Settings.GRID_SIZE, h / Settings.GRID_SIZE);
+        state.nodeGrid = new NodeGrid(w / Settings.GRID_SIZE, h / Settings.GRID_SIZE);
         pane.setContent(canvas);
         final GraphicsContext gc = canvas.getGraphicsContext2D();
         double zoom = 1;
@@ -110,9 +132,9 @@ public class Main extends Application {
                 case DELETE:
                 case BACK_SPACE:
                     for (Node node : getSelectedNodes()) {
-                        nodes.remove(node.id);
-                        sinkNodes.remove(node.id);
-                        nodeGrid.eraseNode(node);
+                        state.nodes.remove(node.id);
+                        state.sinkNodes.remove(node.id);
+                        state.nodeGrid.eraseNode(node);
                     }
                     selectedNodes.clear();
                     break;
@@ -136,7 +158,7 @@ public class Main extends Application {
 
                     // if we're above a node, and no nodes are selected, then add the current node to the
                     // selected list
-                    Node hitTest = nodeGrid.nodeAtPos(dragCur);
+                    Node hitTest = state.nodeGrid.nodeAtPos(dragCur);
                     if (hitTest != null && selectedNodes.isEmpty()) {
                         selectNode(hitTest);
                     }
@@ -152,7 +174,7 @@ public class Main extends Application {
                     // check that the move is valid before performing it
                     if (!firstMove) {
                         for (Node a : getSelectedNodes()) {
-                            for (Node b : nodes.values()) {
+                            for (Node b : state.nodes.values()) {
                                 if (a == b || b.isSelected)
                                     continue;
 
@@ -194,8 +216,8 @@ public class Main extends Application {
                             if (!validDrop) {
                                 node.pos = node.moveStart;
                             } else {
-                                nodeGrid.eraseNode(node.moveStart.x, node.moveStart.y, node.size.x, node.size.y);
-                                nodeGrid.addNode(node);
+                                state.nodeGrid.eraseNode(node.moveStart.x, node.moveStart.y, node.size.x, node.size.y);
+                                state.nodeGrid.addNode(node);
                             }
 
                             node.invalidDropPos = false;
@@ -205,7 +227,7 @@ public class Main extends Application {
 
                         selectedNodes.clear();
                     } else {
-                        Node hit = nodeGrid.nodeAtPos(v);
+                        Node hit = state.nodeGrid.nodeAtPos(v);
                         if (hit != null) {
                             // If ctrl is pressed, then add/remove the node from the selected set; otherwise just clear
                             // the selected set, and insert the node
@@ -226,12 +248,14 @@ public class Main extends Application {
                             if (curRenderSegmentType != RenderSegmentType.UNKNOWN) {
                                 // No node was hit, so create a new one
                                 try {
-                                    Node node = new Node(curRenderSegmentType, v);
-                                    if (nodeGrid.isEmpty(node)) {
-                                        nodeGrid.addNode(node);
-                                        nodes.put(node.id, node);
+                                    RenderSegment segment = RenderSegment.Create(curRenderSegmentType);
+                                    state.renderSegments.put(segment.id, segment);
+                                    Node node = new Node(curRenderSegmentType, v, segment);
+                                    if (state.nodeGrid.isEmpty(node)) {
+                                        state.nodeGrid.addNode(node);
+                                        state.nodes.put(node.id, node);
                                         if (curRenderSegmentType == RenderSegmentType.SINK) {
-                                            sinkNodes.add(node.id);
+                                            state.sinkNodes.add(node.id);
                                         }
                                     }
                                 } catch (Exception e) {
@@ -263,7 +287,7 @@ public class Main extends Application {
 
                     // draw the selected nodes in a later pass
                     List<Node> deferred = new ArrayList<>();
-                    for (Node n : nodes.values()) {
+                    for (Node n : state.nodes.values()) {
                         if (n.isMoving || n.isSelected)
                             deferred.add(n);
                         else
@@ -292,15 +316,15 @@ public class Main extends Application {
 
         while (!nodeStack.isEmpty()) {
             int nodeId = nodeStack.pop();
-            Node node = nodes.get(nodeId);
+            Node node = state.nodes.get(nodeId);
             System.out.printf("Node: %d\n", node.id);
         }
     }
 
     void verifyBlocks() {
 
-        int sizeX = nodeGrid.size.x;
-        int sizeY = nodeGrid.size.y;
+        int sizeX = state.nodeGrid.size.x;
+        int sizeY = state.nodeGrid.size.y;
 
         Set<Integer> processedNodes = new HashSet<>();
 
@@ -308,7 +332,7 @@ public class Main extends Application {
         for (int y = 0 ; y < sizeY; ++y) {
             for (int x = 0; x < sizeX; ++x) {
 
-                Node node = nodeGrid.nodeAtPos(x, y);
+                Node node = state.nodeGrid.nodeAtPos(x, y);
 
                 if (node == null) {
                     continue;
@@ -333,7 +357,7 @@ public class Main extends Application {
 
                 for (int curY = y; curY < sizeY; ++curY) {
 
-                    Node curNode = nodeGrid.nodeAtPos(x, curY);
+                    Node curNode = state.nodeGrid.nodeAtPos(x, curY);
                     if (curNode == null) {
                         // reached end of connected nodes
                         break;
@@ -355,9 +379,44 @@ public class Main extends Application {
         }
     }
 
+    void PostSerializedFixup() {
+
+        // init the node grid
+        state.nodeGrid.data = new int[state.nodeGrid.size.y][state.nodeGrid.size.x];
+    }
+
+    void LoadState() {
+        try {
+            InputStream input = new FileInputStream("/Users/dooz/projects/fraggle/data1.xml");
+            XStream xstream = new XStream(new DomDriver());
+            xstream.processAnnotations(State.class);
+            state = (State)xstream.fromXML(input);
+
+            // Once the state has been restored, we need to do a bunch of fixup
+            PostSerializedFixup();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void SaveState() {
+        try {
+            OutputStream output = new FileOutputStream("/Users/dooz/projects/fraggle/data1.xml");
+            XStream xstream = new XStream(new DomDriver());
+            xstream.processAnnotations(State.class);
+            xstream.toXML(state, output);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void ExportState() {
+    }
+
     @Override
     public void start(Stage primaryStage) throws Exception{
 
+        instance = this;
         root = new Group();
         scene = new Scene(root, 1024, 768);
 
@@ -381,12 +440,19 @@ public class Main extends Application {
 
             Menu fileMenu = new Menu("File");
             MenuItem newMenuItem = new MenuItem("New");
+            MenuItem loadMenuItem = new MenuItem("Load");
+            loadMenuItem.setOnAction(actionEvent -> LoadState() );
             MenuItem saveMenuItem = new MenuItem("Save");
+            loadMenuItem.setOnAction(actionEvent -> SaveState() );
+            MenuItem exportMenuItem = new MenuItem("Export");
+            exportMenuItem.setOnAction(actionEvent -> ExportState() );
             MenuItem exitMenuItem = new MenuItem("Exit");
             exitMenuItem.setOnAction(actionEvent -> Platform.exit() );
 
             fileMenu.getItems().addAll(newMenuItem,
+                    loadMenuItem,
                     saveMenuItem,
+                    exportMenuItem,
                     new SeparatorMenuItem(),
                     exitMenuItem
             );
@@ -394,12 +460,11 @@ public class Main extends Application {
 
             // Create the buttons
             HBox hbox = new HBox();
-            Button btnExport = new Button("export");
             Button btnVerify = new Button("verify");
             btnVerify.setOnAction(event -> {
                 verifyBlocks();
             });
-            hbox.getChildren().addAll(btnExport, btnVerify);
+            hbox.getChildren().addAll(btnVerify);
             vbox.getChildren().add(hbox);
             borderPane.setTop(vbox);
         }
@@ -425,12 +490,12 @@ public class Main extends Application {
             }
             nodesListView = new ListView<>(FXCollections.observableArrayList(nodeTypes));
             nodesListView.getSelectionModel().selectedItemProperty().addListener((observable, oldValue, newValue) -> {
-                curRenderSegmentType = RenderSegmentType.valueOf(newValue);
+                curRenderSegmentType = newValue == null ? RenderSegmentType.UNKNOWN : RenderSegmentType.valueOf(newValue);
             });
             propertySplitPane.getItems().addAll(new PropertySheetVBox(propertySheet, () -> {
                 List<String> sinks = new ArrayList<String>();
-                for (int id : sinkNodes) {
-                    Node node = nodes.get(id);
+                for (int id : state.sinkNodes) {
+                    Node node = state.nodes.get(id);
                     sinks.add((String)((NodeProperty)node.getProperty("name")).value);
                 }
                 return sinks;

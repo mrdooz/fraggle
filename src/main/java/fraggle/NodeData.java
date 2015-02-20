@@ -1,5 +1,6 @@
 package fraggle;
 
+import com.thoughtworks.xstream.annotations.XStreamAsAttribute;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import org.controlsfx.control.PropertySheet;
@@ -10,8 +11,14 @@ import java.util.Map;
 // TODO: So, this is probably something I want to read from config or generate
 
 class NodeProperty {
+
+    @XStreamAsAttribute
     String name;
+
+    @XStreamAsAttribute
     Class<?> type;
+
+    @XStreamAsAttribute
     Object value;
 
     public NodeProperty(Class<?> type, Object value) {
@@ -25,8 +32,18 @@ enum RenderSegmentType {
 };
 
 abstract class RenderSegment {
+
+    Map<String, NodeProperty> properties = new HashMap<>();
+
+    @XStreamAsAttribute
+    RenderSegmentType type;
+
+    @XStreamAsAttribute
+    int id;
+
     RenderSegment(RenderSegmentType type) {
         this.type = type;
+        this.id = Main.instance.nextRenderSegmentId();
     }
 
     RenderSegmentType getType() {
@@ -37,8 +54,14 @@ abstract class RenderSegment {
         return properties;
     }
 
-    Map<String, NodeProperty> properties = new HashMap<>();
-    RenderSegmentType type;
+    public static RenderSegment Create(RenderSegmentType type) {
+        switch (type) {
+            case SINK: return new RenderSegmentSink();
+            case SOURCE: return new RenderSegmentSource();
+            case PARTICLE: return new RenderSegmentParticle();
+        }
+        return null;
+    }
 }
 
 class RenderSegmentSink extends RenderSegment {
@@ -69,18 +92,6 @@ class RenderSegmentParticle extends RenderSegment {
         properties.put("name", new NodeProperty(String.class, "particle1"));
     }
 }
-
-    class RenderSegmentFactory
-    {
-        public static RenderSegment Create(RenderSegmentType type) {
-            switch (type) {
-                case SINK: return new RenderSegmentSink();
-                case SOURCE: return new RenderSegmentSource();
-                case PARTICLE: return new RenderSegmentParticle();
-            }
-            return null;
-        }
-    }
 
 public class NodeData {
 

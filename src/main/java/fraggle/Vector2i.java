@@ -1,7 +1,11 @@
 package fraggle;
 
+import com.thoughtworks.xstream.annotations.XStreamAsAttribute;
+
 public class Vector2i {
+    @XStreamAsAttribute
     int x;
+    @XStreamAsAttribute
     int y;
 
     Vector2i(int x, int y) {
